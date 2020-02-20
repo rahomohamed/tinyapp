@@ -19,17 +19,26 @@ function generateRandomString () {
   }
   return result;
 };
-
+// checks if email already exists 
   const emailLookup = (emailToCheck,users) => {
-    
     for (let user_id in users) {
       if (users[user_id].email === emailToCheck) {
-  
         return user_id;
       }
     }
     return false;
   };
+
+// returns urls for user 
+const urlsForUser = (id, urlDatabase) => {
+  let filteredDatabase = {};
+  for (let key in urlDatabase) {
+    if (urlDatabase[key].userID === id) {
+      filteredDatabase[key] = urlDatabase[key];
+    }
+  }
+  return filteredDatabase;
+}
 
 
 const users = { 
@@ -46,8 +55,9 @@ const users = {
 }
 
 const urlDatabase = {
-  b2xVn2: "http://www.lighthouselabs.ca",
-  "9sm5xK": "http://www.google.com"
+  abc: { longURL: "https://www.tsn.ca", userID: "userRandomID" },
+  b6UTxQ: { longURL: "https://www.tsn.ca", userID: "aJ48lW" },
+  i3BoGr: { longURL: "https://www.google.ca", userID: "aJ48lW" }
 };
 
 app.get("/", (req, res) => {
@@ -59,22 +69,38 @@ app.get("/urls.json", (req, res) => {
 });
 
 app.get("/urls", (req, res) => {
-  let templateVars = { urls: urlDatabase, user: users[req.cookies.user_id] };
+  let filteredData = urlsForUser(req.cookies.user_id, urlDatabase) // urls specific to one user
+  if (!req.cookies.user_id) {
+    res.status(403).send("Login or Register First")
+  } else {
+    console.log(urlDatabase)
+    console.log('////')
+    console.log(filteredData)
+  let templateVars = { filteredDatabase: filteredData, user: users[req.cookies.user_id] };
   res.render("urls_index", templateVars);
+  }
 });
 
 app.post("/urls", (req, res) => {
 let shortURL = generateRandomString()
-urlDatabase[shortURL] = req.body.longURL
+urlDatabase[shortURL] = { "longURL": req.body.longURL, "userID": req.cookies.user_id };
   res.redirect(`urls/${shortURL}`); 
 });
 
 app.post("/urls/:id", (req, res) => {
-  let shortURL = req.params.id;
-  let updatedlongURL = req.body.longURL;
-  urlDatabase[shortURL] = updatedlongURL;
-  res.redirect('/urls')
-})
+let userUrl = urlsForUser(req.cookies.user_id, urlDatabase)
+  for (let key in userUrl) {
+    if (req.params.id === key) {
+      let shortURL = req.params.id;
+      let updatedlongURL = req.body.longURL;
+      urlDatabase[shortURL] = {longURL: updatedlongURL, "userID": req.cookies.user_id  }
+      res.redirect('/urls')
+      return;
+    }
+  }
+  res.status(403).send("You cannot update a URL that is not yours")
+  return;
+});
 
 app.get("/login", (req, res) => {
 let templateVars = {user: users[req.cookies.user_id]};
@@ -101,12 +127,21 @@ app.post("/login", (req, res) => {
 
 app.get("/logout", (req, res) => {
   res.clearCookie('user_id')
-  res.redirect("/urls")
+  res.redirect("/login")
 })
 
 app.post("/urls/:shortURL/delete", (req, res) => {
+  let userUrl = urlsForUser(req.cookies.user_id, urlDatabase)
+  
+  for (let key in userUrl) {
+  if (req.params.shortURL === key) {
   delete urlDatabase[req.params.shortURL];
-  res.redirect("/urls")
+  res.redirect('/urls');
+  return;
+    }
+  }
+  res.status(403).send("You cannot delete a URL that is not yours")
+  return;
 })
 
 app.get("/register", (req, res) => {
@@ -142,17 +177,32 @@ app.get("/u/:shortURL", (req, res) => {
 
 app.get("/urls/new", (req, res) => {
   let templateVars = {user: users[req.cookies.user_id]}
+ 
+  if (!users[req.cookies.user_id]) {
+    res.redirect("/login")
+    return;
+  }
   res.render("urls_new", templateVars);
 });
 
 app.get("/urls/:shortURL", (req, res) => {
+let userUrl = urlsForUser(req.cookies.user_id, urlDatabase)
+for (let key in userUrl) {
+if (req.params.shortURL === key) {
+  
   let templateVars = {
     shortURL: req.params.shortURL,
-    longURL: urlDatabase[req.params.shortURL], 
-    user: users[req.cookies.user_id]
-  };
-  res.render("urls_show", templateVars);
+    longURL: urlDatabase[req.params.shortURL].longURL, 
+    user: users[req.cookies.user_id] };
+
+  res.render("urls_show", templateVars); 
+  return;
+}
+}
+res.status(403).send("You cannot acesss a URL that is not yours")
+return;
 });
+
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}!`);
 });
