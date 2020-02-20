@@ -1,13 +1,19 @@
 const express = require("express");
 const app = express();
-const cookieParser = require('cookie-parser')
-app.use(cookieParser())
+const cookieSession = require('cookie-session')
+const bcrypt = require('bcrypt');
+app.use(cookieSession({
+  name: 'session',
+  keys: ['key1', 'key2']
+}))
+
 const PORT = 8080; // default port 8080
 
 app.set("view engine", "ejs");
 
 const bodyParser = require("body-parser");
 app.use(bodyParser.urlencoded({ extended: true }));
+
 
 function generateRandomString () {
   let result = '';
@@ -45,15 +51,15 @@ const users = {
   "userRandomID": {
     id: "userRandomID", 
     email: "user@example.com", 
-    password: "purple-monkey-dinosaur"
+    password: bcrypt.hashSync("purple-monkey-dinosaur", 10)
   },
  "user2RandomID": {
     id: "user2RandomID", 
     email: "user2@example.com", 
-    password: "dishwasher-funk"
+    password: bcrypt.hashSync("dishwasher-funk", 10)
   }
 }
-
+console.log(users);
 const urlDatabase = {
   abc: { longURL: "https://www.tsn.ca", userID: "userRandomID" },
   b6UTxQ: { longURL: "https://www.tsn.ca", userID: "aJ48lW" },
@@ -68,6 +74,7 @@ app.get("/urls.json", (req, res) => {
   res.json(urlDatabase);
 });
 
+// /urls
 app.get("/urls", (req, res) => {
   let filteredData = urlsForUser(req.cookies.user_id, urlDatabase) // urls specific to one user
   if (!req.cookies.user_id) {
@@ -87,6 +94,25 @@ urlDatabase[shortURL] = { "longURL": req.body.longURL, "userID": req.cookies.use
   res.redirect(`urls/${shortURL}`); 
 });
 
+// urls/:shortURL
+app.get("/urls/:shortURL", (req, res) => {
+  let userUrl = urlsForUser(req.cookies.user_id, urlDatabase)
+  for (let key in userUrl) {
+  if (req.params.shortURL === key) {
+    
+    let templateVars = {
+      shortURL: req.params.shortURL,
+      longURL: urlDatabase[req.params.shortURL].longURL, 
+      user: users[req.cookies.user_id] };
+  
+    res.render("urls_show", templateVars); 
+    return;
+  }
+  }
+  res.status(403).send("You cannot acesss a URL that is not yours")
+  return;
+  });
+
 app.post("/urls/:id", (req, res) => {
 let userUrl = urlsForUser(req.cookies.user_id, urlDatabase)
   for (let key in userUrl) {
@@ -102,6 +128,7 @@ let userUrl = urlsForUser(req.cookies.user_id, urlDatabase)
   return;
 });
 
+// /login
 app.get("/login", (req, res) => {
 let templateVars = {user: users[req.cookies.user_id]};
   res.render("login", templateVars)
@@ -112,24 +139,29 @@ app.post("/login", (req, res) => {
   let password = req.body.password
   let user_id = emailLookup(email, users)
 
+//user does not exist
   if (!user_id) {
     res.status(403).send("User cannot be found")
     return;
-  } else if (password === users[user_id].password) {
+  }
+  // password is not found
+  else if (!bcrypt.compareSync(password, users[user_id].password)) {
+    res.status(403).send("Password is incorrect")
+  } else {
     res.cookie('user_id', user_id)
     res.redirect("/urls");
-   } else {
-    res.status(403).send("Password is incorrect")
     return;
   }
 
 })
 
+ //logout
 app.get("/logout", (req, res) => {
   res.clearCookie('user_id')
   res.redirect("/login")
 })
 
+// delete
 app.post("/urls/:shortURL/delete", (req, res) => {
   let userUrl = urlsForUser(req.cookies.user_id, urlDatabase)
   
@@ -142,8 +174,9 @@ app.post("/urls/:shortURL/delete", (req, res) => {
   }
   res.status(403).send("You cannot delete a URL that is not yours")
   return;
-})
+});
 
+ // register
 app.get("/register", (req, res) => {
   let templateVars = {user: users[req.cookies.user_id]}
   res.render("register", templateVars)
@@ -153,6 +186,7 @@ app.post("/register", (req, res) => {
 let user_id = generateRandomString()
 let email = req.body.email
 let password = req.body.password
+const hashedPassword = bcrypt.hashSync(password, 10);
 
 if (email === "" || password === "") {
 res.status(400).send('Sorry, we cannot find that!');
@@ -164,44 +198,33 @@ else if (emailLookup(email, users)) {
 }
 users[user_id] = {id: user_id,
   email: email,
-  password: password}
-
+  password: hashedPassword}
+console.log(users[user_id]);
 res.cookie("user_id", user_id);
 res.redirect("/urls")
 });
 
+// u/: shortURL
 app.get("/u/:shortURL", (req, res) => {
-  const longURL = urlDatabase[req.params.shortURL]
+   let shortURL = req.params.shortURL;
+  if(!urlDatabase[shortURL]){
+    res.send("URL for the given ID does not exist")
+  }
+  let longURL = urlDatabase[shortURL].longURL;
   res.redirect(longURL);
 });
 
+// /urls/new
 app.get("/urls/new", (req, res) => {
   let templateVars = {user: users[req.cookies.user_id]}
  
-  if (!users[req.cookies.user_id]) {
+  if (!req.cookies.user_id) {
     res.redirect("/login")
     return;
   }
   res.render("urls_new", templateVars);
 });
 
-app.get("/urls/:shortURL", (req, res) => {
-let userUrl = urlsForUser(req.cookies.user_id, urlDatabase)
-for (let key in userUrl) {
-if (req.params.shortURL === key) {
-  
-  let templateVars = {
-    shortURL: req.params.shortURL,
-    longURL: urlDatabase[req.params.shortURL].longURL, 
-    user: users[req.cookies.user_id] };
-
-  res.render("urls_show", templateVars); 
-  return;
-}
-}
-res.status(403).send("You cannot acesss a URL that is not yours")
-return;
-});
 
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}!`);
