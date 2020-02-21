@@ -145,8 +145,13 @@ app.post("/urls/:id", (req, res) => {
 // GET '/LOGIN'
 app.get("/login", (req, res) => {
   let templateVars = { user: users[req.session.user_id] };
+  if(!req.session.user_id) {
   res.render("login", templateVars);
+} else {
+  res.redirect("/urls");
+}
 });
+
 
 // POST '/LOGIN'
 app.post("/login", (req, res) => {
@@ -162,6 +167,7 @@ app.post("/login", (req, res) => {
   // password is not found
   else if (!bcrypt.compareSync(password, users[user_id].password)) {
     res.status(403).send("Password is incorrect");
+  // email or password match
   } else {
     req.session.user_id = user_id;
     res.redirect("/urls");
@@ -172,7 +178,7 @@ app.post("/login", (req, res) => {
 // 'LOGOUT'
 app.get("/logout", (req, res) => {
   req.session = null;
-  res.redirect("/login");
+  res.redirect("/urls");
 });
 
 // POST '/URLS/:shortURL/DELETE'
@@ -193,7 +199,11 @@ app.post("/urls/:shortURL/delete", (req, res) => {
 // GET '/REGISTER'
 app.get("/register", (req, res) => {
   let templateVars = { user: users[req.session.user_id] };
+  if(!req.session.user_id) {
   res.render("register", templateVars);
+  } else {
+    res.redirect("/urls");
+  }
 });
 
 // POST '/REGISTER'
