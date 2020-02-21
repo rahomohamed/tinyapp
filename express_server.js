@@ -51,7 +51,11 @@ const urlDatabase = {
 
 // GET '/'
 app.get("/", (req, res) => {
-  res.send("Hello!");
+  if (!req.session.user_id) {
+  res.redirect("/login");
+  } else {
+      res.redirect("/urls");
+  }
 });
 
 // GET '/URLS.JSON'
