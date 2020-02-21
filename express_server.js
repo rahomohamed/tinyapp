@@ -1,8 +1,10 @@
 const express = require("express");
 const app = express();
 const cookieSession = require("cookie-session");
+const bodyParser = require("body-parser");
 const { getUserByEmail, urlsForUser } = require("./helper");
 const bcrypt = require("bcrypt");
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(
   cookieSession({
     name: "session",
@@ -14,8 +16,6 @@ const PORT = 8080; // default port 8080
 
 app.set("view engine", "ejs");
 
-const bodyParser = require("body-parser");
-app.use(bodyParser.urlencoded({ extended: true }));
 
 // generates unique id
 function generateRandomString() {
@@ -123,7 +123,7 @@ app.get("/urls/:shortURL", (req, res) => {
   return;
 });
 
-// POST /URLS/:ID
+// POST '/URLS/:ID'
 app.post("/urls/:id", (req, res) => {
   let userUrl = urlsForUser(req.session.user_id, urlDatabase);
   for (let key in userUrl) {
@@ -175,7 +175,7 @@ app.post("/login", (req, res) => {
   }
 });
 
-// 'LOGOUT'
+// GET 'LOGOUT'
 app.get("/logout", (req, res) => {
   req.session = null;
   res.redirect("/urls");
